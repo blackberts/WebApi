@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using WebApi.Interfaces;
 using WebApi.Models;
 
 namespace WebApi.Controllers
@@ -8,23 +9,23 @@ namespace WebApi.Controllers
     [ApiController]
     public class BooksController : ControllerBase
     {
-        public readonly DataContext _context;
+        private readonly IBooks _IBooks;
 
-        public BooksController(DataContext context)
+        public BooksController(IBooks iBooks)
         {
-            _context = context;
+            _IBooks = iBooks;
         }
 
         [HttpGet]
         public async Task<ActionResult<List<Books>>> Get()
         {
-            return Ok(await _context.Books.ToListAsync());
+            return Ok(await Task.FromResult(_IBooks.GetAll()));
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<Books>> Get(int id)
         {
-            var book = await _context.Books.FindAsync(id);
+            var book = await Task.FromResult(_IBooks.GetById(id));
             
             if (book == null)
                 return BadRequest("Book not found");
@@ -33,44 +34,30 @@ namespace WebApi.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<List<Books>>> AddBook(Books book)
+        public async Task<ActionResult<List<Books>>> Add(Books book)
         {
-            _context.Books.Add(book);
-            await _context.SaveChangesAsync();
+            _IBooks.AddBook(book);
 
-            return Ok(await _context.Books.ToListAsync());
+            return Ok(await Task.FromResult(book));
         }
 
         [HttpPut]
-        public async Task<ActionResult<List<Books>>> UpdateBook(Books request)
+        public async Task<ActionResult<List<Books>>> Update(Books request)
         {
-            var dbBook = await _context.Books.FindAsync(request.Id);
-            
-            if (dbBook == null)
-                return BadRequest("Book not found");
+            _IBooks.UpdateBook(request);
 
-            dbBook.Title = request.Title;
-            dbBook.Description = request.Description;
-            dbBook.TypeBook = request.TypeBook;
-            dbBook.Price = request.Price;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(await _context.Books.ToListAsync());
+            return Ok(await Task.FromResult(_IBooks.GetAll()));
         }
 
         [HttpDelete]
         public async Task<ActionResult<List<Books>>> Delete(int id)
         {
-            var dbBook = await _context.Books.FindAsync(id);
+            var book = await Task.FromResult(_IBooks.DeleteById(id));
 
-            if (dbBook == null)
+            if (book == null)
                 return BadRequest("Book not found");
 
-            _context.Books.Remove(dbBook);
-
-            await _context.SaveChangesAsync();
-            return Ok(await _context.Books.ToListAsync());
+            return Ok(await Task.FromResult(_IBooks.GetAll()));
         }
     }
 }
