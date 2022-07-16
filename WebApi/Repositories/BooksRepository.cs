@@ -1,14 +1,15 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using WebApi.Data;
 using WebApi.Interfaces;
 using WebApi.Models;
 
 namespace WebApi.Repositories
 {
-    public class IBooksRepository : IBooks
+    public class BooksRepository : IBooks
     {
         private readonly DataContext _dataContext;
 
-        public IBooksRepository(DataContext dataContext)
+        public BooksRepository(DataContext dataContext)
         {
             _dataContext = dataContext;
         }

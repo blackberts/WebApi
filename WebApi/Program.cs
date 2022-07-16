@@ -1,9 +1,17 @@
-global using Microsoft.EntityFrameworkCore;
-global using WebApi.Data;
+using Microsoft.EntityFrameworkCore;
+using WebApi.Data;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using WebApi.Interfaces;
 using WebApi.Repositories;
+using WebApi.Configurations;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Update the JWT config from the settings
+builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -12,7 +20,33 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddTransient<IBooks, IBooksRepository>();
+builder.Services.AddTransient<IBooks, BooksRepository>();
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+                .AddJwtBearer(jwt =>
+{
+    // Getting the secret from the config
+    var key = Encoding.ASCII.GetBytes(builder.Configuration["JwtConfig:Secret"]);
+
+    jwt.SaveToken = true;
+    jwt.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(key),
+        ValidateIssuer = false, // for dev
+        ValidateAudience = false, // for dev
+        RequireExpirationTime = false, // for dev - needs to be updated when refresh token is added
+        ValidateLifetime = true
+    };
+});
+
+builder.Services.AddIdentityCore<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
+                .AddEntityFrameworkStores<DataContext>();
 
 // add database
 builder.Services.AddDbContext<DataContext>(options =>
@@ -30,6 +64,7 @@ if (app.Environment.IsDevelopment())
 }
 app.UseHttpsRedirection();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
