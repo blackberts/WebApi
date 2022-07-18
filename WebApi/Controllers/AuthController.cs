@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -15,18 +16,20 @@ namespace WebApi.Controllers
     public class AuthController : Controller
     {
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IConfiguration _configuration;
         
 
-        public AuthController(UserManager<IdentityUser> userManager, IConfiguration configuration)
+        public AuthController(UserManager<IdentityUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration)
         {
             _userManager = userManager;
+            _roleManager = roleManager;
             _configuration = configuration;
         }
 
         [HttpPost]
         [Route("Register")]
-        public async Task<IActionResult> Register([FromBody] UserRegistrationRequestDto requestDto) // FromBody - ???
+        public async Task<IActionResult> Register([FromBody] UserRegistrationRequestDto requestDto)
         {
             // Validate the incoming request
             if (ModelState.IsValid)
@@ -53,6 +56,8 @@ namespace WebApi.Controllers
                     UserName = requestDto.Name,
                 };
 
+
+
                 var isCreated = await _userManager.CreateAsync(newUser, requestDto.Password);
 
                 if (isCreated.Succeeded)
@@ -76,6 +81,63 @@ namespace WebApi.Controllers
                     },
                     Result = false
                 });
+            }
+
+            return BadRequest();
+        }
+
+        [HttpPost]
+        [Route("Register-admin")]
+        public async Task<IActionResult> RegisterAdmin([FromBody] UserRegistrationRequestDto requestDto)
+        {
+            if (ModelState.IsValid)
+            {
+                var userExist = await _userManager.FindByEmailAsync(requestDto.Email);
+
+                if (userExist != null)
+                {
+                    return BadRequest(new AuthResult()
+                    {
+                        Result = true,
+                        Errors = new List<string>()
+                        {
+                            "Email already exist"
+                        }
+                    });
+
+                    var newUser = new IdentityUser()
+                    {
+                        Email = requestDto.Email,
+                        UserName = requestDto.Name,
+                    };
+
+                    var isCreated = await _userManager.CreateAsync(newUser, requestDto.Password);
+
+                    if (isCreated.Succeeded)
+                    {
+                        var token = GenerateJwtToken(newUser);
+
+                        return Ok(new AuthResult()
+                        {
+                            Result = true,
+                            Token = token
+                        });
+                    }
+
+                    if(!await _roleManager.RoleExistsAsync(UserRoles.Admin.ToString())) // &&&
+                    {
+                        await _roleManager.CreateAsync(new IdentityRole(UserRoles.Admin.ToString()));
+                    }
+                    if(!await _roleManager.RoleExistsAsync(UserRoles.User.ToString()))
+                    {
+                        await _roleManager.CreateAsync(new IdentityRole(UserRoles.User.ToString()));
+                    }
+
+                    if(await _roleManager.RoleExistsAsync(UserRoles.Admin.ToString()))
+                    {
+                        await _userManager.AddToRoleAsync(newUser, UserRoles.Admin.ToString());
+                    }
+                }
             }
 
             return BadRequest();
@@ -116,23 +178,48 @@ namespace WebApi.Controllers
                     });
                 }
 
-                var jwtToken = GenerateJwtToken(existingUser);
+                var userRoles = await _userManager.GetRolesAsync(existingUser);
+
+                //var jwtToken = GenerateJwtToken(existingUser);
+
+                var authClaims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.Email, existingUser.Email),
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                };
+
+                foreach(var userRole in userRoles)
+                {
+                    authClaims.Add(new Claim(ClaimTypes.Role, userRole));
+                }
+
+                var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JwtConfig:Secret"]));
+
+                var token = new JwtSecurityToken(
+                    issuer: _configuration["JwtConfig:Issuer"],
+                    audience: _configuration["JwtConfig:Audience"],
+                    expires: DateTime.Now.AddHours(3),
+                    claims: authClaims,
+                    signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
+                    );
 
                 return Ok(new AuthResult()
                 {
-                    Token = jwtToken,
+                    Token = new JwtSecurityTokenHandler().WriteToken(token),
                     Result = true
                 });
             }
 
+            //return Unauthorized();
             return BadRequest(new AuthResult()
             {
-                Errors = new List<string>() 
+                Errors = new List<string>()
                 {
                     "Invalid payload"
                 },
                 Result = false
             });
+
         }
 
         private string GenerateJwtToken(IdentityUser user)
@@ -142,7 +229,7 @@ namespace WebApi.Controllers
             var key = Encoding.UTF8.GetBytes(_configuration.GetSection("JwtConfig:Secret").Value);
 
             // Token descriptor
-            var tokenDescriptor = new SecurityTokenDescriptor()          // ???
+            var tokenDescriptor = new SecurityTokenDescriptor()
             {
                 Subject = new ClaimsIdentity(new[]
                 {
@@ -159,8 +246,6 @@ namespace WebApi.Controllers
 
             var token = jwtTokenHandler.CreateToken(tokenDescriptor);
             return jwtTokenHandler.WriteToken(token);
-
-           
         }
     }
 }
