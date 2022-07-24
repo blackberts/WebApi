@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -54,6 +56,7 @@ namespace WebApi.Controllers
                 {
                     Email = requestDto.Email,
                     UserName = requestDto.Name,
+                    SecurityStamp = Guid.NewGuid().ToString()
                 };
 
 
@@ -63,12 +66,12 @@ namespace WebApi.Controllers
                 if (isCreated.Succeeded)
                 {
                     // Generate the token
-                    var token = GenerateJwtToken(newUser);
+                    //var token = GenerateJwtToken(newUser);
 
                     return Ok(new AuthResult()
                     {
                         Result = true,
-                        Token = token
+                        //Token = token
                     });
 
                 }
@@ -203,22 +206,23 @@ namespace WebApi.Controllers
                     signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
                     );
 
-                return Ok(new AuthResult()
+                return Ok(new 
                 {
                     Token = new JwtSecurityTokenHandler().WriteToken(token),
+                    Expiration = token.ValidTo,
                     Result = true
                 });
             }
 
-            //return Unauthorized();
-            return BadRequest(new AuthResult()
-            {
-                Errors = new List<string>()
-                {
-                    "Invalid payload"
-                },
-                Result = false
-            });
+            return Unauthorized();
+            //return BadRequest(new AuthResult()
+            //{
+            //    Errors = new List<string>()
+            //    {
+            //        "Invalid payload"
+            //    },
+            //    Result = false
+            //});
 
         }
 

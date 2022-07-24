@@ -13,8 +13,8 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 // Update the JWT config from the settings
-builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
-
+//builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
+builder.Services.AddAuthorization();
 // Add services to the container.
 builder.Services.AddControllers();
 
@@ -39,14 +39,14 @@ builder.Services.AddAuthentication(options =>
     jwt.SaveToken = true;
     jwt.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuerSigningKey = true,
+        //ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
         ValidateIssuer = true, // for dev
         ValidateAudience = true, // for dev
         ValidIssuer = builder.Configuration["JwtConfig:Issuer"],
         ValidAudience = builder.Configuration["JwtConfig:Audience"],
-        RequireExpirationTime = false, // for dev - needs to be updated when refresh token is added
-        ValidateLifetime = true
+        //RequireExpirationTime = false, // for dev - needs to be updated when refresh token is added
+        //ValidateLifetime = true
     };
 });
 
@@ -72,7 +72,7 @@ builder.Services.AddSwaggerGen(swagger =>
     swagger.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
     {
         Name = "Authorization",
-        Type = SecuritySchemeType.ApiKey,
+        Type = SecuritySchemeType.Http,
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
