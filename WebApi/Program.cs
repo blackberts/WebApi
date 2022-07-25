@@ -6,21 +6,17 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using WebApi.Interfaces;
 using WebApi.Repositories;
-using WebApi.Configurations;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Update the JWT config from the settings
-//builder.Services.Configure<JwtConfig>(builder.Configuration.GetSection("JwtConfig"));
 builder.Services.AddAuthorization();
+
 // Add services to the container.
 builder.Services.AddControllers();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
 builder.Services.AddTransient<IBooks, BooksRepository>();
 
@@ -30,28 +26,24 @@ builder.Services.AddAuthentication(options =>
     options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-.AddJwtBearer(jwt =>
+.AddJwtBearer(options =>
 {
     // Getting the secret from the config
-    var key = Encoding.ASCII.GetBytes(builder.Configuration["JwtConfig:Secret"]);
+    var key = Encoding.ASCII.GetBytes(builder.Configuration["Jwt:Secret"]);
 
-    jwt.RequireHttpsMetadata = false;
-    jwt.SaveToken = true;
-    jwt.TokenValidationParameters = new TokenValidationParameters
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        //ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = true, // for dev
-        ValidateAudience = true, // for dev
-        ValidIssuer = builder.Configuration["JwtConfig:Issuer"],
-        ValidAudience = builder.Configuration["JwtConfig:Audience"],
-        //RequireExpirationTime = false, // for dev - needs to be updated when refresh token is added
-        //ValidateLifetime = true
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
     };
 });
 
-builder.Services.AddIdentity<IdentityUser, IdentityRole>().AddEntityFrameworkStores<DataContext>().AddDefaultTokenProviders();
-
+builder.Services.AddIdentityCore<IdentityUser>().AddEntityFrameworkStores<DataContext>().AddDefaultTokenProviders();
 
 // add database
 builder.Services.AddDbContext<DataContext>(options =>
@@ -76,7 +68,7 @@ builder.Services.AddSwaggerGen(swagger =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Enter 'Bearer' [space] and then your valid token in the text input below.\r\n\r\nExample: \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\""
+        Description = "Enter  your valid token in the text input below.\r\n\r\nExample: \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\""
     });
     swagger.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
